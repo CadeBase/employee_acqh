@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Acquifin Holdings – Team Details Confirmation</title>
+<style>
+:root{--navy:#1f3864;--blue:#2f5597;--bg:#f3f5f9;--card:#fff;--line:#d9dee8;--ok:#1e7b3a;--okbg:#e6f4ea;--warn:#a15c00;--warnbg:#fff4e0;--bad:#b3261e;--txt:#1d2433;--mut:#5f6b82}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--txt);font-size:15px}
+header{background:var(--navy);color:#fff;padding:16px 20px}
+header h1{margin:0;font-size:18px}
+header p{margin:4px 0 0;font-size:13px;opacity:.85}
+main{max-width:980px;margin:0 auto;padding:16px}
+.bar{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.prog{flex:1;min-width:220px}
+.prog .t{font-size:13px;color:var(--mut);margin-bottom:6px}
+.track{height:10px;background:#e4e8f0;border-radius:6px;overflow:hidden}
+.fill{height:100%;background:var(--ok);width:0;transition:width .3s}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--blue);background:#fff;color:var(--blue);padding:8px 14px}
+button.primary{background:var(--blue);color:#fff}
+button.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+button.on{background:var(--blue);color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px;border-left:5px solid var(--warn)}
+.card.done{border-left-color:var(--ok)}
+.card.left{opacity:.8;border-left-color:#888}
+.top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start}
+.name{font-size:16px;font-weight:bold}
+.badge{font-size:12px;padding:3px 9px;border-radius:12px;background:var(--warnbg);color:var(--warn);white-space:nowrap}
+.badge.ok{background:var(--okbg);color:var(--ok)}
+.badge.st{background:#eceff5;color:#444;margin-left:6px}
+dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px 18px;margin:12px 0}
+dt{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+dd{margin:2px 0 0;word-break:break-word;min-height:1.2em}
+dd.empty{color:#a0a8b8;font-style:italic}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+form{margin-top:12px;border-top:1px dashed var(--line);padding-top:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px}
+label{display:block;font-size:12px;color:var(--mut)}
+input,select,textarea{width:100%;font:inherit;padding:8px;border:1px solid #b9c1d1;border-radius:6px;margin-top:3px;background:#fff}
+textarea{min-height:60px}
+.wide{grid-column:1/-1}
+.msg{padding:12px 14px;border-radius:8px;margin-bottom:12px}
+.msg.err{background:#fdecea;color:var(--bad)}
+.msg.good{background:var(--okbg);color:var(--ok)}
+.center{text-align:center;padding:60px 20px;color:var(--mut)}
+.hint{font-size:12px;color:var(--mut);margin-top:6px}
+@media(max-width:520px){main{padding:10px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Acquifin Holdings – Team Details Confirmation</h1>
+  <p id="sub">Loading…</p>
+</header>
+<main id="app"><div class="center">Loading your team…</div></main>
+
+<script>
+const SUPABASE_URL = "https://kswuzosnnaxknmppvygi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_bpUQpf1QNYVX6QFhGOAz9g_fPxerGqB";
+const token = new URLSearchParams(location.search).get("t");
+
+let state = { leaderId:null, leader:null, team:[], licenses:[], filter:"all", editing:null, adding:false, note:null };
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function rpc(fn, args){
+  if(state.leaderId && fn!=="tl_list_leaders") args = Object.assign({}, args, {p_leader:state.leaderId});
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method:"POST",
+    headers:{apikey:SUPABASE_KEY, Authorization:`Bearer ${SUPABASE_KEY}`, "Content-Type":"application/json"},
+    body:JSON.stringify(args)
+  });
+  const txt = await r.text();
+  let body; try{ body = txt ? JSON.parse(txt) : null; }catch(e){ body = txt; }
+  if(!r.ok) throw new Error(body && body.message ? body.message : "Request failed");
+  return body;
+}
+
+async function load(){
+  if(!token){ return fatal("This page needs its access link. Please use the link IT sent you."); }
+  try{
+    const leaders = await rpc("tl_list_leaders", {p_token:token});
+    state.leaders = leaders;
+    let saved = null; try{ saved = Number(localStorage.getItem("tl_leader")) || null; }catch(e){}
+    if(saved && leaders.some(l=>l.id===saved)){ await pick(saved); } else { picker(); }
+  }catch(e){
+    fatal(e.message === "invalid link" ? "This link is not valid or has been switched off. Please contact IT." : "Could not load: " + e.message);
+  }
+}
+function picker(){
+  state.leaderId = null; $("#sub").textContent = "Select your name to begin";
+  $("#app").innerHTML = `<div class="bar" style="display:block"><label>Who are you? (team leader / manager)
+    <select id="who"><option value="">— select your name —</option>${state.leaders.map(l=>`<option value="${l.id}">${esc(l.full_name)} (${l.confirmed}/${l.team_size} confirmed)</option>`).join("")}</select></label>
+    <div class="hint">You will only be confirming the people who report directly to you.</div></div>`;
+  $("#who").addEventListener("change", e => { if(e.target.value) pick(Number(e.target.value)); });
+}
+async function pick(id){
+  state.leaderId = id; state.editing=null; state.adding=false; state.note=null;
+  try{
+    const d = await rpc("tl_get_team", {p_token:token});
+    state.leader = d.leader; state.team = d.team; state.licenses = d.licenses;
+    try{ localStorage.setItem("tl_leader", String(id)); }catch(e){}
+    $("#sub").textContent = `Team leader: ${d.leader.full_name}`;
+    render();
+  }catch(e){ state.leaderId=null; fatal("Could not load your team: " + e.message); }
+}
+function fatal(m){ $("#sub").textContent=""; $("#app").innerHTML = `<div class="msg err">${esc(m)}</div>`; }
+
+const licName = id => (state.licenses.find(l=>l.id===id)||{}).name || "";
+const fmtDate = d => d ? d : "";
+function field(label, val){ return `<div><dt>${label}</dt><dd class="${val?'':'empty'}">${val?esc(val):"not captured"}</dd></div>`; }
+
+function render(){
+  const t = state.team, n = t.length, c = t.filter(p=>p.confirmed_at).length;
+  const shown = t.filter(p => state.filter==="all" ? true : !p.confirmed_at);
+  let h = "";
+  if(state.note) h += `<div class="msg good">${esc(state.note)}</div>`;
+  h += `<div class="bar">
+    <div class="prog"><div class="t">${c} of ${n} confirmed${c===n&&n>0?" – all done, thank you!":""}</div>
+    <div class="track"><div class="fill" style="width:${n?Math.round(c/n*100):0}%"></div></div></div>
+    <div class="tools">
+      <button class="${state.filter==='all'?'on':''}" data-act="filter" data-v="all">All</button>
+      <button class="${state.filter==='todo'?'on':''}" data-act="filter" data-v="todo">Still to confirm</button>
+      <button class="primary" data-act="add">+ Add a missing person</button>
+      <button data-act="switch">Not you? Change name</button>
+    </div></div>`;
+  if(state.adding) h += personForm(null);
+  if(!n) h += `<div class="center">No team members are linked to you yet.</div>`;
+  for(const p of shown) h += card(p);
+  if(n && !shown.length) h += `<div class="center">Everyone is confirmed.</div>`;
+  $("#app").innerHTML = h;
+}
+
+function card(p){
+  const done = !!p.confirmed_at, left = p.status!=="Active";
+  let h = `<div class="card ${done?'done':''} ${left?'left':''}" id="p${p.id}">
+    <div class="top"><div class="name">${esc(p.full_name)}${left?`<span class="badge st">${esc(p.status)}</span>`:""}</div>
+    <span class="badge ${done?'ok':''}">${done?"Confirmed "+esc(p.confirmed_at.slice(0,10)):"Not confirmed"}</span></div>
+    <dl>${field("Job title",p.job_title)}${field("Department",p.department)}${field("Desk",p.desk_number)}${field("Floor",p.floor)}
+    ${field("Work email",p.work_email)}${field("Contact number",p.contact_number)}${field("Microsoft licence",licName(p.license_id))}
+    ${field("Start date",fmtDate(p.start_date))}${p.status==="Left"?field("Left date",fmtDate(p.left_date)):""}${field("Notes",p.notes)}</dl>`;
+  if(state.editing===p.id){ h += personForm(p); }
+  else h += `<div class="acts">
+      ${done?"":`<button class="ok" data-act="confirm" data-id="${p.id}">✓ All correct</button>`}
+      <button data-act="edit" data-id="${p.id}">${done?"Edit":"Edit / flag leaver"}</button></div>`;
+  return h + `</div>`;
+}
+
+function personForm(p){
+  const v = p || {status:"Active"};
+  const lic = `<option value="">— none —</option>` + state.licenses.map(l=>`<option value="${l.id}" ${v.license_id===l.id?"selected":""}>${esc(l.name)}</option>`).join("");
+  const st = ["Active","Left","Suspended"].map(s=>`<option ${v.status===s?"selected":""}>${s}</option>`).join("");
+  return `<form data-id="${p?p.id:""}">
+    <div class="grid">
+      <label class="wide">Full name *<input name="full_name" required value="${esc(v.full_name)}"></label>
+      <label>Job title<input name="job_title" value="${esc(v.job_title)}"></label>
+      <label>Department<input name="department" value="${esc(v.department)}"></label>
+      <label>Desk number<input name="desk_number" value="${esc(v.desk_number)}"></label>
+      <label>Floor<input name="floor" value="${esc(v.floor)}"></label>
+      <label>Work email<input name="work_email" type="email" value="${esc(v.work_email)}"></label>
+      <label>Contact number<input name="contact_number" type="tel" value="${esc(v.contact_number)}"></label>
+      <label>Microsoft licence<select name="license_id">${lic}</select></label>
+      <label>Start date<input name="start_date" type="date" value="${esc(v.start_date)}"></label>
+      ${p?`<label>Status<select name="status">${st}</select></label>
+      <label>Left date (if Left)<input name="left_date" type="date" value="${esc(v.left_date)}"></label>`:""}
+      <label class="wide">Notes<textarea name="notes">${esc(v.notes)}</textarea></label>
+    </div>
+    <div class="hint">Saving also confirms this person's details as correct.</div>
+    <div class="acts" style="margin-top:10px"><button class="ok" type="submit">Save &amp; confirm</button>
+    <button type="button" data-act="cancel">Cancel</button></div>
+    <div class="msg err" style="display:none;margin-top:10px" data-err></div></form>`;
+}
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("button[data-act]"); if(!b) return;
+  const a = b.dataset.act, id = Number(b.dataset.id);
+  state.note = null;
+  if(a==="switch"){ try{ localStorage.removeItem("tl_leader"); }catch(e){} picker(); return; }
+  if(a==="filter"){ state.filter=b.dataset.v; render(); }
+  else if(a==="add"){ state.adding=true; state.editing=null; render(); window.scrollTo({top:0,behavior:"smooth"}); }
+  else if(a==="edit"){ state.editing=id; state.adding=false; render(); }
+  else if(a==="cancel"){ state.editing=null; state.adding=false; render(); }
+  else if(a==="confirm"){
+    b.disabled=true;
+    try{ await rpc("tl_confirm_employee",{p_token:token,p_id:id}); await reload("Confirmed."); }
+    catch(err){ b.disabled=false; alert_(err.message); }
+  }
+});
+
+document.addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target, id = f.dataset.id ? Number(f.dataset.id) : null;
+  const data = Object.fromEntries(new FormData(f).entries());
+  const errBox = f.querySelector("[data-err]"); errBox.style.display="none";
+  if(data.status==="Left" && !data.left_date){ errBox.textContent="Please enter the left date."; errBox.style.display="block"; return; }
+  if(data.status && data.status!=="Left") data.left_date = "";
+  const btn = f.querySelector("button[type=submit]"); btn.disabled=true;
+  try{
+    if(id){ await rpc("tl_update_employee",{p_token:token,p_id:id,p_data:data}); await rpc("tl_confirm_employee",{p_token:token,p_id:id}); state.editing=null; await reload("Saved and confirmed."); }
+    else { const nid = await rpc("tl_add_employee",{p_token:token,p_data:data}); await rpc("tl_confirm_employee",{p_token:token,p_id:nid}); state.adding=false; await reload("Person added and confirmed."); }
+  }catch(err){ btn.disabled=false; errBox.textContent="Could not save: "+err.message; errBox.style.display="block"; }
+});
+
+function alert_(m){ state.note=null; $("#app").insertAdjacentHTML("afterbegin", `<div class="msg err">${esc(m)}</div>`); }
+async function reload(note){
+  const d = await rpc("tl_get_team",{p_token:token});
+  state.team=d.team; state.licenses=d.licenses; state.note=note; render(); window.scrollTo({top:0,behavior:"smooth"});
+}
+load();
+</script>
+</body>
+</html>
