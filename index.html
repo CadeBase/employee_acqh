@@ -102,7 +102,7 @@ async function pick(id){
   state.leaderId = id; state.editing=null; state.adding=false; state.note=null;
   try{
     const d = await rpc("tl_get_team", {p_token:token});
-    state.leader = d.leader; state.team = d.team; state.licenses = d.licenses;
+    state.leader = d.leader; state.team = d.team; state.licenses = d.licenses; state.defaultDept = d.default_department;
     try{ localStorage.setItem("tl_leader", String(id)); }catch(e){}
     $("#sub").textContent = `Team leader: ${d.leader.full_name}`;
     render();
@@ -125,7 +125,7 @@ function render(){
     <div class="tools">
       <button class="${state.filter==='all'?'on':''}" data-act="filter" data-v="all">All</button>
       <button class="${state.filter==='todo'?'on':''}" data-act="filter" data-v="todo">Still to confirm</button>
-      <button class="primary" data-act="add">+ Add a missing person</button>
+      <button class="primary" data-act="add">+ Add an agent we missed</button>
       <button data-act="switch">Not you? Change name</button>
     </div></div>`;
   if(state.adding) h += personForm(null);
@@ -151,7 +151,7 @@ function card(p){
 }
 
 function personForm(p){
-  const v = p || {status:"Active"};
+  const v = p || {status:"Active", department:state.defaultDept||"", job_title:"Call Centre Agent"};
   const lic = `<option value="">— none —</option>` + state.licenses.map(l=>`<option value="${l.id}" ${v.license_id===l.id?"selected":""}>${esc(l.name)}</option>`).join("");
   const st = ["Active","Left","Suspended"].map(s=>`<option ${v.status===s?"selected":""}>${s}</option>`).join("");
   return `<form data-id="${p?p.id:""}">
@@ -169,7 +169,7 @@ function personForm(p){
       <label>Left date (if Left)<input name="left_date" type="date" value="${esc(v.left_date)}"></label>`:""}
       <label class="wide">Notes<textarea name="notes">${esc(v.notes)}</textarea></label>
     </div>
-    <div class="hint">Saving also confirms this person's details as correct.</div>
+    <div class="hint">Saving also confirms this person's details as correct.${p?"":" New agents are added to your team."}</div>
     <div class="acts" style="margin-top:10px"><button class="ok" type="submit">Save &amp; confirm</button>
     <button type="button" data-act="cancel">Cancel</button></div>
     <div class="msg err" style="display:none;margin-top:10px" data-err></div></form>`;
